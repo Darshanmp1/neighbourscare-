@@ -1,7 +1,7 @@
 # NeighboursCare - Community Emergency Aid Platform
 ## Project Summary & Documentation
 
-**Repository**: https://github.com/Mitheleshnaikds/neighbourcare.git  
+**Repository**: https://github.com/Darshanmp1/neighbourscare-.git 
 **Date**: October 12, 2025  
 **Version**: 1.0.0  
 
