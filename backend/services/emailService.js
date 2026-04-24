@@ -61,11 +61,18 @@ const sendIncidentNotification = async (email, incident) => {
           ${process.env.FRONTEND_URL ? `
             <p style="margin-top: 10px;">
               <a href="${process.env.FRONTEND_URL}/incidents/${incident._id}" 
-                style="background-color: #3182ce; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 10px;">
+                style="background-color: #3182ce; color: white; padding: 10px 20px; text-decoration: none; border-radius: 50px; display: inline-block; margin-top: 10px; font-weight: bold;">
                 View Emergency Details
               </a>
             </p>
           ` : ''}
+          
+          <p style="margin-top: 10px;">
+            <a href="https://www.google.com/maps/dir/?api=1&destination=${incident.location.coordinates[1]},${incident.location.coordinates[0]}" 
+              style="background-color: #2f855a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 50px; display: inline-block; margin-top: 5px; font-weight: bold;">
+              📍 Navigate in Google Maps
+            </a>
+          </p>
         </div>
         
         <div style="margin-top: 20px; font-size: 12px; color: #718096; text-align: center;">

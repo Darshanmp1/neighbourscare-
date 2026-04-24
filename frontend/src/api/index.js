@@ -90,6 +90,34 @@ export const incidentsAPI = {
     const response = await api.post(`/incidents/${incidentId}/notes`, { text: note });
     return response.data;
   },
+
+  deleteIncident: async (incidentId) => {
+    const response = await api.delete(`/incidents/${incidentId}`);
+    return response.data;
+  },
+};
+
+// Admin API
+export const adminAPI = {
+  getUsers: async () => {
+    const response = await api.get('/admin/users');
+    return response.data;
+  },
+
+  updateUserRole: async (userId, role) => {
+    const response = await api.patch(`/admin/users/${userId}/role`, { role });
+    return response.data;
+  },
+
+  toggleUserStatus: async (userId) => {
+    const response = await api.patch(`/admin/users/${userId}/status`);
+    return response.data;
+  },
+
+  deleteUser: async (userId) => {
+    const response = await api.delete(`/admin/users/${userId}`);
+    return response.data;
+  },
 };
 
 export default api;

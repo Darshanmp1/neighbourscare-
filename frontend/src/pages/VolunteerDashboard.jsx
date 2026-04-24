@@ -32,16 +32,41 @@ const VolunteerDashboard = () => {
 
     // Listen for incident status updates
     const handleIncidentUpdate = (updatedIncident) => {
-      setIncidents(prev => 
-        prev.map(incident => 
-          incident._id === updatedIncident._id ? updatedIncident : incident
-        )
-      );
-      setAssignedIncidents(prev => 
-        prev.map(incident => 
-          incident._id === updatedIncident._id ? updatedIncident : incident
-        )
-      );
+      // 1. Update/Remove from Available Incidents
+      if (updatedIncident.status !== 'open') {
+        setIncidents(prev => prev.filter(incident => incident._id !== updatedIncident._id));
+      } else {
+        setIncidents(prev => 
+          prev.map(incident => 
+            incident._id === updatedIncident._id ? { ...incident, ...updatedIncident } : incident
+          )
+        );
+      }
+      
+      // 2. Manage Assigned Incidents (STRICT ISOLATION)
+      // Check if it should be in THIS user's assigned list
+      const isAssignedToMe = updatedIncident.assignedVolunteer && 
+                            (updatedIncident.assignedVolunteer._id === user.id || 
+                             updatedIncident.assignedVolunteer === user.id);
+
+      setAssignedIncidents(prev => {
+        const alreadyInList = prev.some(i => i._id === updatedIncident._id);
+        
+        if (isAssignedToMe) {
+          if (alreadyInList) {
+            // Update existing
+            return prev.map(i => i._id === updatedIncident._id ? { ...i, ...updatedIncident } : i);
+          } else {
+            // New assignment (Wait! Better to reload to get FULL data including reporter etc.)
+            loadAssignedIncidents();
+            return prev;
+          }
+        } else if (alreadyInList) {
+          // It was here, but now it's assigned to someone else or something changed
+          return prev.filter(i => i._id !== updatedIncident._id);
+        }
+        return prev;
+      });
     };
 
     socketService.onNewIncident(handleNewIncident);
@@ -132,7 +157,13 @@ const VolunteerDashboard = () => {
       loadAssignedIncidents();
     } catch (error) {
       console.error('Failed to accept incident:', error);
-      toast.error('Failed to accept incident');
+      if (error.response?.status === 409) {
+        toast.error('Too late! Another volunteer has already accepted this emergency.', { duration: 5000 });
+        // Refresh to get the latest state
+        loadIncidents();
+      } else {
+        toast.error('Failed to accept incident');
+      }
     }
   };
 
@@ -287,13 +318,24 @@ const VolunteerDashboard = () => {
                     {formatDateTime(incident.createdAt)}
                   </div>
                   {incident.status === 'in_progress' && (
-                    <button
-                      onClick={() => handleResolveIncident(incident._id)}
-                      className="btn-success text-sm"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Mark Resolved
-                    </button>
+                    <div className="flex space-x-2">
+                       <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${incident.location.coordinates[1]},${incident.location.coordinates[0]}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-primary text-sm flex items-center bg-green-600 hover:bg-green-700"
+                      >
+                        <MapPin className="w-4 h-4 mr-1" />
+                        Navigate
+                      </a>
+                      <button
+                        onClick={() => handleResolveIncident(incident._id)}
+                        className="btn-success text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        Mark Resolved
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -344,15 +386,26 @@ const VolunteerDashboard = () => {
                   Close
                 </button>
                 {selectedIncident.status === 'open' && (
-                  <button
-                    onClick={() => {
-                      handleAcceptIncident(selectedIncident._id);
-                      setSelectedIncident(null);
-                    }}
-                    className="btn-primary"
-                  >
-                    Accept & Respond
-                  </button>
+                  <div className="flex space-x-2">
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${selectedIncident.location.coordinates[1]},${selectedIncident.location.coordinates[0]}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary text-sm flex items-center"
+                    >
+                      <MapPin className="w-4 h-4 mr-1" />
+                      View on Google Maps
+                    </a>
+                    <button
+                      onClick={() => {
+                        handleAcceptIncident(selectedIncident._id);
+                        setSelectedIncident(null);
+                      }}
+                      className="btn-primary"
+                    >
+                      Accept & Respond
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

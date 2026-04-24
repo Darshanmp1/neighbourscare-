@@ -76,10 +76,10 @@ const incidentSchema = new mongoose.Schema({
         },
         method: {
             type: String,
-            enum: ['socket', 'email'],
+            enum: ['socket', 'email', 'sms'],
             default: 'socket'
         }
-    }]
+    }],
 }, {
     timestamps: true
 });
@@ -93,6 +93,13 @@ incidentSchema.index({ createdAt: -1 });
 
 // Update status and track timing
 incidentSchema.methods.updateStatus = function (newStatus, volunteerId = null) {
+    // If trying to accept an incident that is already taken
+    if (newStatus === 'in_progress' && this.status === 'in_progress' && this.assignedVolunteer && this.assignedVolunteer.toString() !== volunteerId?.toString()) {
+        const error = new Error('This incident has already been accepted by another volunteer.');
+        error.name = 'ConcurrencyError';
+        throw error;
+    }
+
     this.status = newStatus;
 
     if (newStatus === 'in_progress' && !this.responseTime) {

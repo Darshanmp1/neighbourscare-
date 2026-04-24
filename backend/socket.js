@@ -27,7 +27,7 @@ const setupSocket = (io) => {
         socket.on('volunteer:location', async ({ lat, lng }) => {
           try {
             // Update user location in database
-            await socket.user.update({
+            await socket.user.updateOne({
               location: {
                 type: 'Point',
                 coordinates: [lng, lat]
@@ -38,6 +38,23 @@ const setupSocket = (io) => {
             connectedUsers.set(userId, {
               socketId: socket.id,
               location: { type: 'Point', coordinates: [lng, lat] }
+            });
+
+            // Find incidents assigned to this volunteer that are not resolved
+            const Incident = require('./models/Incident');
+            const activeIncidents = await Incident.find({
+              assignedVolunteer: userId,
+              status: { $in: ['in_progress', 'open'] }
+            });
+
+            // Broadcast location to each incident's reporter
+            activeIncidents.forEach(incident => {
+              io.to(incident.reporter.toString()).emit('volunteer:locationUpdate', {
+                volunteerId: userId,
+                incidentId: incident._id,
+                lat,
+                lng
+              });
             });
           } catch (error) {
             console.error('Error updating volunteer location:', error);

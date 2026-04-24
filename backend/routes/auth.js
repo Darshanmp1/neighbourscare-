@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const { getGeoDetails } = require('../utils/geocoder');
 
 const router = express.Router();
 
@@ -23,7 +24,8 @@ router.post('/register', [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('role').optional().isIn(['user', 'volunteer', 'admin']).withMessage('Invalid role'),
   body('lat').optional().isFloat({ min: -90, max: 90 }).withMessage('Invalid latitude'),
-  body('lng').optional().isFloat({ min: -180, max: 180 }).withMessage('Invalid longitude')
+  body('lng').optional().isFloat({ min: -180, max: 90 }).withMessage('Invalid longitude'),
+  body('phone').optional().trim().isLength({ min: 10, max: 15 }).withMessage('Invalid phone number')
 ], async (req, res) => {
   try {
     // Check for validation errors
@@ -36,7 +38,7 @@ router.post('/register', [
       });
     }
 
-    const { name, email, password, role = 'user', lat, lng } = req.body;
+    const { name, email, password, role = 'user', lat, lng, phone } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -52,7 +54,8 @@ router.post('/register', [
       name,
       email,
       password,
-      role
+      role,
+      phone
     };
 
     // Add location if provided
@@ -61,6 +64,11 @@ router.post('/register', [
         type: 'Point',
         coordinates: [lng, lat]
       };
+      
+      const geo = await getGeoDetails(lat, lng);
+      if (geo && !userData.address) {
+        userData.address = geo.address;
+      }
     }
 
     // Create user

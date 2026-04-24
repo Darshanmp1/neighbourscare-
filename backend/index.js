@@ -13,6 +13,7 @@ const connectDB = require('./config/db');
 const setupSocket = require('./socket');
 const authRoutes = require('./routes/auth');
 const incidentRoutes = require('./routes/incidents');
+const adminRoutes = require('./routes/admin');
 
 // Create Express app
 const app = express();
@@ -53,6 +54,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/incidents', incidentRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -69,7 +71,6 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`
 Server running in ${process.env.NODE_ENV} mode on port ${PORT}
-MongoDB connection: ${process.env.MONGODB_URI}
 CORS origin: ${process.env.CORS_ORIGIN || 'http://localhost:3000'}
 Alert radius: ${process.env.ALERT_RADIUS_METERS || 5000}m
 `);

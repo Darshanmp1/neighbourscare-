@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { isValidEmail, getCurrentLocation } from '../utils';
-import { Eye, EyeOff, Mail, Lock, User, MapPin } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, MapPin, Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Register = () => {
@@ -14,6 +14,7 @@ const Register = () => {
     role: 'user',
     lat: '',
     lng: '',
+    phone: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -89,6 +90,10 @@ const Register = () => {
       newErrors.lng = 'Invalid longitude';
     }
 
+    if (formData.role === 'volunteer' && !formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required for volunteers to receive alerts';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -106,6 +111,7 @@ const Register = () => {
         email: formData.email,
         password: formData.password,
         role: formData.role,
+        phone: formData.phone.trim(),
       };
 
       if (formData.lat && formData.lng) {
@@ -196,6 +202,30 @@ const Register = () => {
                 <option value="volunteer">Volunteer (Respond to Emergencies)</option>
                 <option value="admin">Admin (System Management)</option>
               </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="phone" className="form-label">
+                Phone Number {formData.role === 'volunteer' && <span className="text-red-500">*</span>}
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Phone className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="text"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className={`form-input pl-10 ${errors.phone ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
+                  placeholder="e.g. +91 9876543210"
+                />
+              </div>
+              {errors.phone && (
+                <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">Required for receiving SMS alerts (E.164 format recommended)</p>
             </div>
 
             <div className="form-group">

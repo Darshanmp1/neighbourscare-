@@ -75,6 +75,13 @@ class SocketService {
     }
   }
 
+  // Listen for live volunteer tracking location
+  onVolunteerLocationUpdate(callback) {
+    if (this.socket) {
+      this.socket.on('volunteer:locationUpdate', callback);
+    }
+  }
+
   // Remove event listeners
   off(event, callback) {
     if (this.socket) {

@@ -59,7 +59,7 @@ const userSchema = new mongoose.Schema({
   lastSeen: {
     type: Date,
     default: Date.now
-  }
+  },
 }, {
   timestamps: true
 });
@@ -68,6 +68,8 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ location: '2dsphere' });
 userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
+userSchema.index({ isActive: 1 });
+userSchema.index({ lastSeen: -1 });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {

@@ -4,6 +4,9 @@ const { protect, authorize } = require('../middleware/auth');
 const User = require('../models/User');
 const Incident = require('../models/Incident');
 const { sendIncidentNotification } = require('../services/emailService');
+const { sendIncidentSMS } = require('../services/smsService');
+
+const { getGeoDetails } = require('../utils/geocoder');
 
 const router = express.Router();
 
@@ -29,8 +32,7 @@ router.post('/', protect, [
       });
     }
 
-    const { title, description, lat, lng, priority = 'medium', address } = req.body;
-
+    let { title, description, lat, lng, priority = 'medium', address } = req.body;
     // Create incident
     const incident = await Incident.create({
       reporter: req.user.id,
@@ -91,8 +93,9 @@ router.post('/', protect, [
       }
     });
 
-    // Send emails to offline volunteers
+    // Send emails and SMS to offline volunteers
     for (const volunteer of offlineVolunteers) {
+      // Send Email
       try {
         await sendIncidentNotification(volunteer.email, incident);
         incident.notifiedVolunteers.push({
@@ -101,6 +104,37 @@ router.post('/', protect, [
         });
       } catch (error) {
         console.error(`Failed to send email to ${volunteer.email}:`, error);
+      }
+
+      // Send SMS (if phone number exists)
+      if (volunteer.phone) {
+        try {
+          await sendIncidentSMS(volunteer.phone, incident);
+          incident.notifiedVolunteers.push({
+            user: volunteer._id,
+            method: 'sms'
+          });
+        } catch (error) {
+          console.error(`Failed to send SMS to ${volunteer.phone}:`, error);
+        }
+      }
+    }
+
+    // Special case: For high/critical priority, also SMS online volunteers if they have phone
+    if (priority === 'high' || priority === 'critical') {
+      const onlineVolunteers = nearbyVolunteers.filter(v => !offlineVolunteers.includes(v));
+      for (const volunteer of onlineVolunteers) {
+        if (volunteer.phone) {
+          try {
+            await sendIncidentSMS(volunteer.phone, incident);
+            incident.notifiedVolunteers.push({
+              user: volunteer._id,
+              method: 'sms'
+            });
+          } catch (error) {
+            console.error(`Failed to send urgent SMS to online volunteer ${volunteer.phone}:`, error);
+          }
+        }
       }
     }
 
@@ -113,7 +147,8 @@ router.post('/', protect, [
       incident,
       notifiedCount: {
         socket: nearbyVolunteers.length - offlineVolunteers.length,
-        email: offlineVolunteers.length
+        email: offlineVolunteers.length,
+        sms: incident.notifiedVolunteers.filter(n => n.method === 'sms').length
       }
     });
   } catch (error) {
@@ -131,16 +166,29 @@ router.post('/', protect, [
 router.get('/', protect, async (req, res) => {
   try {
     let query = {};
-    const { status, priority, startDate, endDate } = req.query;
+    const { status, priority, startDate, endDate, assignedVolunteer: queryAssignedVolunteer, reporter: queryReporter } = req.query;
 
     // Base query based on user role
     if (req.user.role === 'user') {
+      // Users can only see their own incidents
       query.reporter = req.user._id;
     } else if (req.user.role === 'volunteer') {
-      query.$or = [
-        { assignedVolunteer: req.user._id },
-        { status: 'open' }
-      ];
+      if (queryAssignedVolunteer) {
+        // If specifically asking for assigned incidents, only show those belonging to me
+        // (Security check: volunteers can't see other volunteers' assigned lists)
+        query.assignedVolunteer = req.user._id;
+      } else {
+        // Default volunteer view: my assigned ones OR open ones
+        query.$or = [
+          { assignedVolunteer: req.user._id },
+          { status: 'open' }
+        ];
+      }
+    } else if (req.user.role === 'admin') {
+      // Admin sees all
+      // Admin can filter by specific volunteer/reporter if they want
+      if (queryAssignedVolunteer) query.assignedVolunteer = queryAssignedVolunteer;
+      if (queryReporter) query.reporter = queryReporter;
     }
     // Admin can see all incidents
 
@@ -239,9 +287,19 @@ router.patch('/:id/status', [
     }
 
     // Update status and associated data
-    await incident.updateStatus(req.body.status, req.user.id);
+    try {
+      await incident.updateStatus(req.body.status, req.user.id);
+    } catch (err) {
+      if (err.name === 'ConcurrencyError') {
+        return res.status(409).json({
+          success: false,
+          message: err.message
+        });
+      }
+      throw err;
+    }
 
-    // Emit status update event
+    // Emit status update event to the reporter (immediate status update)
     req.io.to(incident.reporter.toString()).emit('incident:statusUpdate', {
       incidentId: incident._id,
       status: incident.status,
@@ -249,6 +307,14 @@ router.patch('/:id/status', [
         id: req.user.id,
         name: req.user.name
       }
+    });
+
+    // BROADCAST to everyone else (especially volunteers) to keep UI in sync
+    req.io.emit('incident:statusUpdate', {
+      _id: incident._id,
+      title: incident.title,
+      status: incident.status,
+      assignedVolunteer: incident.assignedVolunteer
     });
 
     res.json({
@@ -319,6 +385,48 @@ router.post('/:id/notes', [
     res.status(500).json({
       success: false,
       message: 'Server error adding note'
+    });
+  }
+});
+
+// @desc    Delete incident
+// @route   DELETE /api/incidents/:id
+// @access  Private (Admin only)
+router.delete('/:id', [
+  protect,
+  authorize('admin'),
+  param('id').isMongoId().withMessage('Invalid incident ID')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const incident = await Incident.findById(req.params.id);
+
+    if (!incident) {
+      return res.status(404).json({
+        success: false,
+        message: 'Incident not found'
+      });
+    }
+
+    await incident.deleteOne();
+
+    res.json({
+      success: true,
+      message: 'Incident deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete incident error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error deleting incident'
     });
   }
 });

@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { incidentsAPI } from '../api';
 import { getCurrentLocation, formatDateTime, getStatusColor, getPriorityColor, capitalize } from '../utils';
-import { AlertTriangle, MapPin, Clock, Plus, RefreshCw, X, Phone, Mail } from 'lucide-react';
+import { 
+  AlertTriangle, MapPin, Clock, Plus, RefreshCw, X, Phone, Mail,
+  Flame, ShieldAlert, Activity, Hand
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import socketService from '../socket';
 import IncidentMap from '../components/IncidentMap';
@@ -34,18 +37,28 @@ const UserDashboard = () => {
     const handleIncidentUpdate = (updatedIncident) => {
       setIncidents(prev => 
         prev.map(incident => 
-          incident._id === updatedIncident._id ? updatedIncident : incident
+          incident._id === updatedIncident._id ? { ...incident, ...updatedIncident } : incident
         )
       );
-      toast.success(`Incident "${updatedIncident.title}" status updated to ${updatedIncident.status}`);
+      toast.success(`Incident "${updatedIncident.title || 'Emergency'}" status updated to ${updatedIncident.status}`);
     };
 
     socketService.onIncidentStatusUpdate(handleIncidentUpdate);
 
+    // Listen for live volunteer tracking
+    const handleVolunteerLocationUpdate = (data) => {
+      if (showVolunteerDetails && showVolunteerDetails.id === data.volunteerId) {
+        setVolunteerLocation([data.lat, data.lng]);
+      }
+    };
+
+    socketService.onVolunteerLocationUpdate(handleVolunteerLocationUpdate);
+
     return () => {
       socketService.off('incident:statusUpdate', handleIncidentUpdate);
+      socketService.off('volunteer:locationUpdate', handleVolunteerLocationUpdate);
     };
-  }, []);
+  }, [showVolunteerDetails]);
 
   const loadIncidents = async () => {
     try {
@@ -124,6 +137,57 @@ const UserDashboard = () => {
     }
   };
 
+  const handleQuickAction = async (type) => {
+    const quickActions = {
+      fire: {
+        title: 'Fire Emergency',
+        description: 'Emergency fire report. Help needed immediately.',
+        priority: 'critical',
+      },
+      robbery: {
+        title: 'Robbery / Theft',
+        description: 'Robbery in progress or just occurred.',
+        priority: 'critical',
+      },
+      manhandling: {
+        title: 'Manhandling / Assault',
+        description: 'Physical confrontation or assault reported.',
+        priority: 'high',
+      },
+      ambulance: {
+        title: 'Medical Emergency',
+        description: 'Ambulance needed immediately. Medical assistance required.',
+        priority: 'critical',
+      }
+    };
+
+    const action = quickActions[type];
+    if (!action) return;
+
+    if (!window.confirm(`Are you sure you want to report a ${action.title} at your current location?`)) return;
+
+    setIsSubmitting(true);
+    try {
+      toast.loading('Getting location and reporting...', { id: 'quick-action' });
+      const location = await getCurrentLocation();
+      
+      const incidentData = {
+        ...action,
+        lat: location.lat,
+        lng: location.lng,
+      };
+
+      await incidentsAPI.create(incidentData);
+      toast.success(`${action.title} reported successfully!`, { id: 'quick-action' });
+      loadIncidents();
+    } catch (error) {
+      console.error('Quick action failure:', error);
+      toast.error('Failed to report emergency automatically. Please use the manual form.', { id: 'quick-action' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -184,11 +248,65 @@ const UserDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Quick Actions */}
+      <div className="card bg-danger-50 border-danger-100">
+        <h2 className="text-lg font-bold text-danger-700 mb-4 flex items-center">
+          <AlertTriangle className="w-5 h-5 mr-2" />
+          Quick Emergency Actions (One-Click)
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <button 
+            onClick={() => handleQuickAction('fire')}
+            className="flex flex-col items-center justify-center p-6 bg-white border-2 border-orange-200 rounded-xl hover:border-orange-500 hover:shadow-md transition-all group"
+          >
+            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <Flame className="w-7 h-7 text-orange-600" />
+            </div>
+            <span className="font-bold text-gray-800">FIRE</span>
+          </button>
+          
+          <button 
+            onClick={() => handleQuickAction('robbery')}
+            className="flex flex-col items-center justify-center p-6 bg-white border-2 border-red-200 rounded-xl hover:border-red-500 hover:shadow-md transition-all group"
+          >
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <ShieldAlert className="w-7 h-7 text-red-600" />
+            </div>
+            <span className="font-bold text-gray-800">ROBBERY</span>
+          </button>
+          
+          <button 
+            onClick={() => handleQuickAction('manhandling')}
+            className="flex flex-col items-center justify-center p-6 bg-white border-2 border-purple-200 rounded-xl hover:border-purple-500 hover:shadow-md transition-all group"
+          >
+            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <Hand className="w-7 h-7 text-purple-600" />
+            </div>
+            <span className="font-bold text-gray-800">ASSAULT</span>
+          </button>
+          
+          <button 
+            onClick={() => handleQuickAction('ambulance')}
+            className="flex flex-col items-center justify-center p-6 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-500 hover:shadow-md transition-all group"
+          >
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+              <Activity className="w-7 h-7 text-blue-600" />
+            </div>
+            <span className="font-bold text-gray-800">AMBULANCE</span>
+          </button>
+        </div>
+        <p className="mt-4 text-xs text-danger-600 text-center font-medium uppercase tracking-wider">
+          Clicking a button will immediately alert nearby volunteers with your current location
+        </p>
+      </div>
+
+      <hr className="border-gray-200" />
+
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Emergency Dashboard</h1>
-          <p className="text-gray-600">Report emergencies and track their status</p>
+          <h1 className="text-2xl font-bold text-gray-900">Manual Reports</h1>
+          <p className="text-gray-600">Choose this for non-urgent issues or detailed reports</p>
         </div>
         <div className="flex space-x-3">
           <button
@@ -204,10 +322,10 @@ const UserDashboard = () => {
           </button>
           <button
             onClick={() => setShowCreateForm(true)}
-            className="btn-danger flex items-center"
+            className="btn-primary flex items-center shadow-lg"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Report Emergency
+            File Manual Report
           </button>
         </div>
       </div>
@@ -577,24 +695,12 @@ const UserDashboard = () => {
                   </p>
                   <button
                     onClick={() => {
-                      // Simulate getting volunteer location
                       if (showVolunteerDetails.location?.coordinates) {
                         const [lng, lat] = showVolunteerDetails.location.coordinates;
                         setVolunteerLocation([lat, lng]);
-                        toast.success('Volunteer location updated');
+                        toast.success('Position updated from volunteer record');
                       } else {
-                        // Simulate location near user
-                        if (user.location?.coordinates) {
-                          const [userLng, userLat] = user.location.coordinates;
-                          setVolunteerLocation([
-                            userLat + (Math.random() - 0.5) * 0.01,
-                            userLng + (Math.random() - 0.5) * 0.01
-                          ]);
-                          toast.success('Volunteer location found');
-                        } else {
-                          setVolunteerLocation([40.7589, -73.9851]); // Default NYC location
-                          toast.success('Volunteer location found');
-                        }
+                        toast.error('Volunteer is not sharing live location yet');
                       }
                     }}
                     className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
