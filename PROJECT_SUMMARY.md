@@ -178,17 +178,21 @@ Express API + Socket.IO Server
 - notification preferences are not persisted server-side
 - assignment protection should be upgraded from an application-level guard to an atomic database update
 
-## Testing Summary
+## Testing & Health Summary
 
-### Present in the repo
-- manual verification scripts for quick actions
-- manual verification scripts for admin flows
+### Automated Testing (New)
+- **Unit & Geospatial Tests**: Integrated Jest and `mongodb-memory-server` to verify the core `$near` location-matching logic.
+- **Contract Tests**: Verified that volunteer notifications correctly trigger based on role and status.
+
+### Production Readiness
+- **Log Sanitization**: Sensitive environment variables and database URIs are automatically filtered from server logs.
+- **Reactive Tracking**: Replaced polling-based or simulated tracking with true event-driven Socket.IO broadcasts for live volunteer movement.
+- **Validation**: Enforced strict `express-validator` schemas on all data entry points.
 
 ### Missing
-- unit tests
-- integration tests
-- end-to-end browser tests
-- API and socket contract tests
+- End-to-end browser tests (Cypress/Playwright)
+- Integration tests for high-load socket scenarios
+- Performance/Load testing for large geospatial data sets
 
 ## Interview-Ready Trade-offs
 

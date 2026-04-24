@@ -150,7 +150,11 @@ cd frontend
 npm run dev
 ```
 
-Frontend default Vite URL is usually `http://localhost:5173`.
+### 4. Run tests
+```bash
+cd backend
+npm test
+```
 
 ## API Snapshot
 
@@ -158,37 +162,52 @@ Frontend default Vite URL is usually `http://localhost:5173`.
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
-- `PUT /api/auth/location`
+- `PUT /api/auth/location` - Used for real-time volunteer tracking
 - `PUT /api/auth/profile`
 - `PUT /api/auth/password`
 
 ### Incidents
-- `POST /api/incidents`
+- `POST /api/incidents` - Includes geospatial matching with $near query
 - `GET /api/incidents`
 - `GET /api/incidents/:id`
-- `PATCH /api/incidents/:id/status`
+- `PATCH /api/incidents/:id/status` - Updates status and triggers socket notifications
 - `POST /api/incidents/:id/notes`
 - `DELETE /api/incidents/:id`
 
-### Admin
-- `GET /api/admin/users`
-- `PATCH /api/admin/users/:id/role`
-- `PATCH /api/admin/users/:id/status`
-- `DELETE /api/admin/users/:id`
-
 ### Socket events
-- `incident:new`
-- `incident:statusUpdate`
-- `incident:noteAdded`
-- `volunteer:location`
+- `incident:new` - Sent to nearby online volunteers
+- `incident:statusUpdate` - Broadcast to relevant parties when status changes
+- `volunteer:location` - Volunteers emit this to share live presence
+- `volunteer:locationUpdate` - Backend re-emits this to reporters for live tracking
 
-## Current Scope And Honest Notes
+## Project Health & Reliability
 
-- The strongest implemented flow is `report incident -> notify volunteers -> accept -> resolve`.
-- Manual verification scripts exist in `backend/` for quick actions and admin features.
-- A formal automated test suite is not set up yet.
-- Notification preference toggles in the Settings screen are UI-only today.
-- For a production-hardening pass, the biggest upgrades would be atomic incident assignment, stronger auth storage, rate limiting, and typed event contracts shared between frontend and backend.
+This project followed a rigorous health-check process to ensure production readiness:
+
+- **Automated Testing**: Integrated Jest and `mongodb-memory-server` for reliable geospatial unit tests.
+- **Log Sanitization**: Sensitive URIs and credentials are filtered from logs.
+- **Real-Time Reactive UI**: Volunteer tracking is now fully reactive via Socket.IO, replacing simulated loops with real event-driven updates.
+- **Strict Validation**: All endpoints uses `express-validator` and standard HTTP status codes.
+
+## Repository Layout
+
+```text
+neighbourcare/
+|-- backend/
+|   |-- config/
+|   |-- middleware/
+|   |-- models/
+|   |-- routes/
+|   |-- services/
+|   |-- tests/        <-- Automated test suite
+|   |-- utils/
+|   `-- index.js
+|-- frontend/
+|   `-- src/
+|-- README.md
+|-- PROJECT_SUMMARY.md
+`-- INTERVIEW_READY_GUIDE.md
+```
 
 ## Documentation
 
