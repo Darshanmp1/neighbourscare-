@@ -156,6 +156,12 @@ cd backend
 npm test
 ```
 
+### 5. Run with Docker (Recommended for production)
+```bash
+docker compose up -d
+```
+The app will be available at `http://localhost:8080`.
+
 ## API Snapshot
 
 ### Auth
@@ -212,13 +218,3 @@ neighbourcare/
 ## Documentation
 
 - [PROJECT_SUMMARY.md](./PROJECT_SUMMARY.md): concise product, architecture, data, and API summary
-- [INTERVIEW_READY_GUIDE.md](./INTERVIEW_READY_GUIDE.md): full interview preparation guide with Q&A, trade-offs, and system design discussion
-
-## Interview Angle
-
-This project is a strong example of an MVP that solves a real community problem with:
-
-- end-to-end ownership across frontend, backend, data, and real-time systems
-- practical use of geospatial indexing
-- role-based product design
-- discussion-ready trade-offs around scale, reliability, and security
